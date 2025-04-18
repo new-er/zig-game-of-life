@@ -1,16 +1,24 @@
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
 });
-const assert = @import("std").debug.assert;
+const game = @import("game.zig");
+const std = @import("std");
 
 pub fn main() !void {
+    const tileCountX = 40;
+    const tileCountY = 40;
+    const windowSizeX = 640;
+    const windowSizeY = 640;
+    const tileSizeX = windowSizeX / tileCountX;
+    const tileSizeY = windowSizeY / tileCountY;
+
     if (c.SDL_Init(c.SDL_INIT_VIDEO) != 0) {
         c.SDL_Log("Unable to initialize SDL: %s", c.SDL_GetError());
         return error.SDLInitializationFailed;
     }
     defer c.SDL_Quit();
 
-    const screen = c.SDL_CreateWindow("My Game Window", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, 400, 140, c.SDL_WINDOW_OPENGL) orelse
+    const screen = c.SDL_CreateWindow("Game of Life", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, windowSizeX, windowSizeY, c.SDL_WINDOW_OPENGL) orelse
         {
             c.SDL_Log("Unable to create window: %s", c.SDL_GetError());
             return error.SDLInitializationFailed;
@@ -23,26 +31,17 @@ pub fn main() !void {
     };
     defer c.SDL_DestroyRenderer(renderer);
 
-    const zig_bmp = @embedFile("zig.bmp");
-    const rw = c.SDL_RWFromConstMem(zig_bmp, zig_bmp.len) orelse {
-        c.SDL_Log("Unable to get RWFromConstMem: %s", c.SDL_GetError());
-        return error.SDLInitializationFailed;
+    const tiles = game.allocateTiles(tileCountX, tileCountY) catch |err| {
+        c.SDL_Log("Error allocating tiles: %s", "s");
+        return err;
     };
-    defer assert(c.SDL_RWclose(rw) == 0);
-
-    const zig_surface = c.SDL_LoadBMP_RW(rw, 0) orelse {
-        c.SDL_Log("Unable to load bmp: %s", c.SDL_GetError());
-        return error.SDLInitializationFailed;
+    game.randomizeTiles(tiles) catch |err| {
+        c.SDL_Log("Error randomizing tiles: %s", "s");
+        return err;
     };
-    defer c.SDL_FreeSurface(zig_surface);
-
-    const zig_texture = c.SDL_CreateTextureFromSurface(renderer, zig_surface) orelse {
-        c.SDL_Log("Unable to create texture from surface: %s", c.SDL_GetError());
-        return error.SDLInitializationFailed;
-    };
-    defer c.SDL_DestroyTexture(zig_texture);
 
     var quit = false;
+    var lastUpdate = std.time.milliTimestamp();
     while (!quit) {
         var event: c.SDL_Event = undefined;
         while (c.SDL_PollEvent(&event) != 0) {
@@ -54,9 +53,33 @@ pub fn main() !void {
             }
         }
 
+        _ = c.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         _ = c.SDL_RenderClear(renderer);
-        _ = c.SDL_RenderCopy(renderer, zig_texture, null, null);
+
+        for (tiles, 0..) |row, rowIndex| {
+            for (row, 0..) |tile, colIndex| {
+                if (tile) {
+                    const rect = c.SDL_Rect{
+                        .x = @intCast(colIndex * tileSizeX),
+                        .y = @intCast(rowIndex * tileSizeY),
+                        .w = tileSizeX,
+                        .h = tileSizeY,
+                    };
+
+                    _ = c.SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                    _ = c.SDL_RenderFillRect(renderer, &rect);
+                }
+            }
+        }
         c.SDL_RenderPresent(renderer);
+
+        if (lastUpdate + 100 < std.time.milliTimestamp()) {
+            lastUpdate = std.time.milliTimestamp();
+            game.updateTiles(tiles) catch |err| {
+                c.SDL_Log("Error updating tiles: %s", err);
+                return err;
+            };
+        }
 
         c.SDL_Delay(17);
     }

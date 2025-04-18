@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch",
+            "program": "${workspaceFolder}/zig-out/bin/zig-game-of-life",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build"
+        },
+        {
+            "name": "(lldb) Launch",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/zig-out/bin/zig-game-of-life",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "internalConsoleOptions": "openOnSessionStart",
+            "MIMode": "lldb",
+            "preLaunchTask": "build"
+        }
+    ]
+}
